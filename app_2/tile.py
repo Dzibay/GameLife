@@ -11,9 +11,12 @@ class Tile:
         self.color = COLORS[self.resource_type]
         self.rect = pygame.Rect(self.x * TILE_SIZE, self.y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
         self.owner_state = None
+        self.radioactive = False
 
     def draw(self, surface):
-        if self.owner_state:
+        if self.radioactive:
+            pygame.draw.rect(surface, (57, 255, 20), self.rect)
+        elif self.owner_state:
             color = self.owner_state.color
             pygame.draw.rect(surface, (int(color[0]*0.7), int(color[1]*0.7), int(color[2]*0.7)), self.rect)
         else:
