@@ -17,6 +17,7 @@ COLORS = {
     'wood': (140, 90, 40),
     'stone': (130, 130, 130),
     'human': (255, 255, 0),
+    'group': (255, 165, 0),
     'tribe': (200, 0, 200),
     'city': (220, 220, 220),
     'background': (10, 10, 10),
@@ -24,17 +25,16 @@ COLORS = {
     'text': (240, 240, 240),
     'war': (255, 0, 0),
     'peace': (0, 255, 0),
+    'destroyed': (0, 0, 0),
     'progress_bar_bg': (80, 80, 80),
-    'progress_bar_fill': (100, 200, 255)
+    'progress_bar_fill': (100, 200, 255),
+    'spawn_marker': (255, 255, 255, 150)
 }
-STATE_COLORS = [
-    (0, 110, 230), (230, 110, 0), (0, 170, 0), (180, 0, 180),
-    (230, 200, 0), (0, 180, 180)
-]
 
 # Параметры Симуляции
 INITIAL_SPEED = 1
-MAX_RESOURCE_PER_TILE = 1000
+TICK_STEP = 50
+MAX_RESOURCE_PER_TILE = 100000
 
 HUMAN_LIFESPAN = (60, 90) # в секундах
 HUMAN_MAX_HUNGER = 10
@@ -42,16 +42,21 @@ HUMAN_MAX_THIRST = 10
 HUMAN_INVENTORY_CAPACITY = 50
 HUMAN_MERGE_RADIUS = 5
 HUMAN_VISION_RADIUS = 10
+HUMAN_GATHER_SPEED = 3
 
-TRIBE_CREATION_MEMBERS = 2
+GROUP_CREATION_MEMBERS = 2
+GROUP_JOIN_RADIUS = 4
+
+TRIBE_CREATION_POPULATION = 10
 TRIBE_CREATION_RESOURCES = {'wood': 50, 'stone': 50}
 TRIBE_MAX_POPULATION = 30
 
-CITY_CREATION_RESOURCES = {'wood': 200, 'stone': 200}
-CITY_MAX_POPULATION = 100
+CITY_CREATION_RESOURCES = {'wood': 500, 'stone': 500}
+CITY_MAX_POPULATION = 1000
 
-STATE_CREATION_RESOURCES = {'wood': 500, 'stone': 500}
-STATE_EXPANSION_COST = {'wood': 100, 'stone': 100, 'food': 50}
+STATE_CREATION_RESOURCES = {'wood': 10000, 'stone': 10000}
+STATE_EXPANSION_COST = {'wood': 2000, 'stone': 2000}
+MAX_TECHNOLOGY_LVL = 100
 
 
 # --- Вспомогательные функции ---
