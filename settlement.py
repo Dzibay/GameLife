@@ -41,13 +41,14 @@ class Settlement:
     def gather_resources(self):
         for tile in self.territory:
             if tile.resource_amount > 0:
-                amount = min(tile.resource_amount, HUMAN_GATHER_SPEED)
+                amount = min(tile.resource_amount, HUMAN_GATHER_SPEED * self.population / len(self.territory))
                 for resource in self.resources:
                     if resource == tile.resource_type:
                         self.resources[resource] += amount
                         tile.resource_amount -= amount
                     else:
-                        self.resources[resource] += amount // 10
+                        self.resources[resource] += amount / 10
+    
 
     def update_population(self):
         food_needed = self.population * 0.1
@@ -125,14 +126,24 @@ class State(City):
         self.nuclear_bomb = 0
         self.nuclear_progress = 0
         self.starting_nuclear_war = 0
+        self.neighbors_cache = {}
 
     def update_territory(self, world):
-        if world:
-            if not self.territory:
-                center_tile = world.get_tile(self.x, self.y)
-                if center_tile: self.territory = [center_tile] + world.get_neighbors(center_tile, radius=3)
-            for tile in self.territory: tile.owner_state = self
-            self.capacity = 150 + len(self.territory) * 5
+        if world: 
+            if not self.territory: 
+                center_tile = world.get_tile(self.x, self.y) 
+                if center_tile: 
+                    self.territory = [center_tile] + world.get_neighbors(center_tile, radius=3) 
+                    for tile in self.territory: 
+                        tile.owner_state = self
+
+        # if not self.territory:
+        #     c = world.get_tile(self.x, self.y)
+        #     if c: self.territory = [c] + world.get_neighbors(c, radius=3)
+        # for t in self.territory:
+        #     t.owner_state = self
+        # self.capacity = len(self.territory) * 20
+
     def draw(self, surface): pass
     def get_max_population(self): return len(self.territory) * 20
     def get_power(self): return (self.population + sum(self.resources.values()) / 10) * self.technology_lvl
@@ -144,74 +155,119 @@ class State(City):
                             if any(n.owner_state != self for n in world.get_neighbors(t))}
     
 
+    # def expand(self, world):
+    #     # Проверяем ресурсы
+    #     if not all(self.resources.get(res, 0) >= cost for res, cost in STATE_EXPANSION_COST.items()):
+    #         return
+        
+    #     # Собираем все соседние тайлы текущей территории
+    #     expandable_tiles = set()
+    #     for tile in self.border_tiles:
+    #         for neighbor in world.get_neighbors(tile):
+    #             if neighbor.owner_state is None:
+    #                 expandable_tiles.add(neighbor)
+        
+    #     if not expandable_tiles:
+    #         return  # нет куда расширяться
+
+    #     # Выбираем случайный тайл из множества
+    #     new_tile = random.choice(list(expandable_tiles))
+
+    #     # Расширяем территорию
+    #     self.territory.append(new_tile)
+    #     new_tile.owner_state = self
+
+    #     tile_to_state[(new_tile.x, new_tile.y)] = self
+    #     self.border_tiles.add(new_tile)
+    #     # проверяем соседей нового тайла
+    #     for neighbor in world.get_neighbors(new_tile):
+    #         if neighbor.owner_state == self:
+    #             # сосед уже наш, он может перестать быть пограничным
+    #             if all(n.owner_state == self for n in world.get_neighbors(neighbor)):
+    #                 self.border_tiles.discard(neighbor)
+
+    #     # Снимаем ресурсы
+    #     for res, cost in STATE_EXPANSION_COST.items():
+    #         self.resources[res] -= cost
     def expand(self, world):
-        # Проверяем ресурсы
         if not all(self.resources.get(res, 0) >= cost for res, cost in STATE_EXPANSION_COST.items()):
             return
-        
-        # Собираем все соседние тайлы текущей территории
-        expandable_tiles = set()
-        for tile in self.border_tiles:
-            for neighbor in world.get_neighbors(tile):
-                if neighbor.owner_state is None:
-                    expandable_tiles.add(neighbor)
-        
-        if not expandable_tiles:
-            return  # нет куда расширяться
-
-        # Выбираем случайный тайл из множества
-        new_tile = random.choice(list(expandable_tiles))
-
-        # Расширяем территорию
+        expandable = set()
+        for t in self.border_tiles:
+            key = (t.x, t.y, 1)
+            if key not in self.neighbors_cache:
+                self.neighbors_cache[key] = world.get_neighbors(t)
+            for n in self.neighbors_cache[key]:
+                if n.owner_state is None:
+                    expandable.add(n)
+        if not expandable:
+            return
+        new_tile = random.choice(tuple(expandable))
         self.territory.append(new_tile)
         new_tile.owner_state = self
-
         tile_to_state[(new_tile.x, new_tile.y)] = self
         self.border_tiles.add(new_tile)
-        # проверяем соседей нового тайла
-        for neighbor in world.get_neighbors(new_tile):
-            if neighbor.owner_state == self:
-                # сосед уже наш, он может перестать быть пограничным
-                if all(n.owner_state == self for n in world.get_neighbors(neighbor)):
-                    self.border_tiles.discard(neighbor)
-
-        # Снимаем ресурсы
+        for n in world.get_neighbors(new_tile):
+            if n.owner_state == self and all(nb.owner_state == self for nb in world.get_neighbors(n)):
+                self.border_tiles.discard(n)
         for res, cost in STATE_EXPANSION_COST.items():
             self.resources[res] -= cost
+        self._power_dirty = True
 
 
+    # def update_diplomacy(self, world):
+    #     # Сохраняем всех соседних государств
+    #     neighboring_states = set()
+        
+    #     for tile in self.border_tiles:
+    #         for neighbor in world.get_neighbors(tile):
+    #             if neighbor.owner_state and neighbor.owner_state != self:
+    #                 neighboring_states.add(neighbor.owner_state)
+        
+    #     # Обновляем дипломатию
+    #     for other_state in neighboring_states:
+    #         if other_state not in self.diplomacy:
+    #             # Решаем: война или мир
+    #             if other_state.nuclear_bomb and self.nuclear_bomb:
+    #                 self.diplomacy[other_state] = 'war'
+    #                 other_state.diplomacy[self] = 'war'
+    #             else:
+    #                 try:
+    #                     power_differense = self.get_summary_power() / other_state.get_summary_power()
+    #                     if power_differense > 1.2 or power_differense < 0.8:
+    #                         self.diplomacy[other_state] = 'war'
+    #                         other_state.diplomacy[self] = 'war'
+    #                     else:
+    #                         self.diplomacy[other_state] = 'peace'
+    #                         other_state.diplomacy[self] = 'peace'
+    #                 except:
+    #                     pass
+        
+    #     # Убираем из дипломатов тех, кто больше не сосед
+    #     for other_state in list(self.diplomacy.keys()):
+    #         if other_state not in neighboring_states:
+    #             del self.diplomacy[other_state]
     def update_diplomacy(self, world):
-        # Сохраняем всех соседних государств
-        neighboring_states = set()
-        
-        for tile in self.border_tiles:
-            for neighbor in world.get_neighbors(tile):
-                if neighbor.owner_state and neighbor.owner_state != self:
-                    neighboring_states.add(neighbor.owner_state)
-        
-        # Обновляем дипломатию
-        for other_state in neighboring_states:
-            if other_state not in self.diplomacy:
-                # Решаем: война или мир
-                if other_state.nuclear_bomb and self.nuclear_bomb:
-                    self.diplomacy[other_state] = 'war'
-                    other_state.diplomacy[self] = 'war'
-                else:
-                    try:
-                        power_differense = self.get_summary_power() / other_state.get_summary_power()
-                        if power_differense > 1.2 or power_differense < 0.8:
-                            self.diplomacy[other_state] = 'war'
-                            other_state.diplomacy[self] = 'war'
-                        else:
-                            self.diplomacy[other_state] = 'peace'
-                            other_state.diplomacy[self] = 'peace'
-                    except:
-                        pass
-        
-        # Убираем из дипломатов тех, кто больше не сосед
-        for other_state in list(self.diplomacy.keys()):
-            if other_state not in neighboring_states:
-                del self.diplomacy[other_state]
+        neighboring = set()
+        for t in self.border_tiles:
+            key = (t.x, t.y, 1)
+            if key not in self.neighbors_cache:
+                self.neighbors_cache[key] = world.get_neighbors(t)
+            for n in self.neighbors_cache[key]:
+                if n.owner_state and n.owner_state != self:
+                    neighboring.add(n.owner_state)
+        for other in neighboring:
+            if other not in self.diplomacy:
+                try:
+                    ratio = self.get_summary_power() / other.get_summary_power()
+                    status = 'war' if ratio > 1.2 or ratio < 0.8 else 'peace'
+                    self.diplomacy[other] = status
+                    other.diplomacy[self] = status
+                except ZeroDivisionError:
+                    pass
+        for s in list(self.diplomacy.keys()):
+            if s not in neighboring:
+                del self.diplomacy[s]
     
     def handle_wars(self, world, states):
         for enemy, status in self.diplomacy.items():
@@ -299,13 +355,14 @@ class State(City):
     def update(self, world, states):
         if self.population > 0 and self.territory:
             self.gather_resources()
-            self.update_population()
-            if self.population <= 0:
-                for tile in self.territory: tile.owner_state = None
-                if self in states: states.remove(self)
-                return
-            self.expand(world)
-            self.update_diplomacy(world)
-            self.update_technology_lvl()
-            self.handle_wars(world, states)
-            self.check_nuclear_progress(world)
+            if len(self.territory) < 1000:
+                self.update_population()
+
+                if self.population <= 0:
+                    for tile in self.territory: tile.owner_state = None
+
+                self.expand(world)
+                self.update_diplomacy(world)
+                self.update_technology_lvl()
+                self.handle_wars(world, states)
+                self.check_nuclear_progress(world)
